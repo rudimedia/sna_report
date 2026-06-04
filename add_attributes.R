@@ -22,60 +22,38 @@ install.packages("pacman")
 
 #### LOAD PACKAGES ####
 
-pacman::p_load("igraph", "jsonlite")
+pacman::p_load("igraph", "dplyr", "purrr", "tibble", "stringr")
 
 #### DATA ####
 
-data <- fromJSON("congress_network/congress_network_data.json", simplifyVector = FALSE)
+data <- jsonlite::fromJSON("congress_network/congress_network_data.json", simplifyVector = FALSE)
+voteview <- readr::read_csv("HS117_members.csv")
 
+leg <- yaml::read_yaml("https://raw.githubusercontent.com/unitedstates/congress-legislators/main/legislators-current.yaml")
+soc <- yaml::read_yaml("https://raw.githubusercontent.com/unitedstates/congress-legislators/main/legislators-social-media.yaml")
 
-inList       <- data[[1]]$inList
-inWeight     <- data[[1]]$inWeight
-outList      <- data[[1]]$outList
-outWeight    <- data[[1]]$outWeight
+inList <- data[[1]]$inList
+inWeight <- data[[1]]$inWeight
+outList <- data[[1]]$outList
+outWeight <- data[[1]]$outWeight
 usernameList <- data[[1]]$usernameList
 
 edges <- do.call(
-  rbind,
-  lapply(seq_along(outList), function(i) {
+  rbind, lapply(seq_along(outList), function(i) {
     if (length(outList[[i]]) == 0) return(NULL)
-    
     data.frame(
       from = i - 1,                    
       to = unlist(outList[[i]]),
-      weight = unlist(outWeight[[i]])
-    )
-  })
-)
+      weight = unlist(outWeight[[i]]))}))
 
-head(edges)
-
-g <- graph_from_data_frame(
-  d = edges,
-  directed = TRUE,
-  vertices = data.frame(
-    name = seq_along(usernameList) - 1,
-    username = unlist(usernameList)
-  )
-)
-
-
-
+g <- graph_from_data_frame(d = edges, directed = TRUE, vertices = data.frame(name = seq_along(usernameList) - 1, username = unlist(usernameList)))
 
 #### Attributes ####
 
-V(g)$username # username
-V(g)$name # id
-
-pacman::p_load("yaml", "dplyr", "purrr", "tibble", "stringr")
+# V(g)$username # username
+# V(g)$name # id
 
 `%||%` <- function(x, y) if (is.null(x)) y else x
-
-leg_url <- "https://raw.githubusercontent.com/unitedstates/congress-legislators/main/legislators-current.yaml"
-soc_url <- "https://raw.githubusercontent.com/unitedstates/congress-legislators/main/legislators-social-media.yaml"
-
-leg <- yaml::read_yaml(leg_url)
-soc <- yaml::read_yaml(soc_url)
 
 members <- map_dfr(leg, function(x) {
   terms <- x$terms
@@ -107,10 +85,7 @@ members <- members %>%
   left_join(social, by = "bioguide_id")
 
 members_117 <- members %>%
-  filter(
-    term_start < as.Date("2023-01-03"),
-    term_end > as.Date("2021-01-03")
-  ) %>%
+  filter(term_start < as.Date("2023-01-03"), term_end > as.Date("2021-01-03")) %>%
   mutate(
     chamber = case_when(
       type == "sen" ~ "Senate",
@@ -139,44 +114,27 @@ members_117_one <- members_117 %>%
 graph_vertices <- tibble(
   name = V(g)$name,
   username = V(g)$username,
-  twitter_clean = str_to_lower(str_remove(V(g)$username, "^@"))
-)
+  twitter_clean = str_to_lower(str_remove(V(g)$username, "^@")))
 
 vertex_metadata <- graph_vertices %>%
   left_join(members_117_one, by = "twitter_clean")
 
 V(g)$full_name <- vertex_metadata$full_name
-V(g)$chamber   <- vertex_metadata$chamber
-V(g)$party     <- vertex_metadata$party
-V(g)$state     <- vertex_metadata$state
-V(g)$district  <- vertex_metadata$district
-V(g)$bioguide_id  <- vertex_metadata$bioguide_id
+V(g)$chamber <- vertex_metadata$chamber
+V(g)$party <- vertex_metadata$party
+V(g)$state <- vertex_metadata$state
+V(g)$district <- vertex_metadata$district
+V(g)$bioguide_id <- vertex_metadata$bioguide_id
 
-library(readr)
-voteview <- read_csv("HS117_members.csv")
-
+# IDEOLOGY
 nodes <- tibble(idx = seq_len(vcount(g)), bioguide_id  = V(g)$bioguide_id) %>%
   left_join(voteview, by = "bioguide_id")
 
-## push columns back onto the graph (nodes is in vertex order)
 V(g)$icpsr <- nodes$icpsr
 V(g)$nominate_dim1 <- nodes$nominate_dim1
 V(g)$nominate_dim2 <- nodes$nominate_dim2
 V(g)$born <- nodes$born
-V(g)$age24 <- (2024 - nodes$born)
-
-#### FULL DATASET ####
-
-V(g)$username
-V(g)$full_name
-V(g)$chamber
-V(g)$party
-V(g)$nominate_dim1
-V(g)$nominate_dim2
-V(g)$age24
-
-E(g)$weight
-
+V(g)$age24 <- (2024 - nodes$born) 
 
 #### DESCRIPTIVES ####
 
@@ -264,7 +222,6 @@ homophily_score %>%
 ggplot(homophily_score, aes(x = age, y = h_score, colour = party)) +
   geom_point(alpha = 0.5) +
   geom_smooth(method = "lm", se = TRUE) +
-  scale_colour_manual(values = c(Democrat = "blue", Republican = "red", Independent = "green")) +
   labs(x = "Age", y = "Within-party retweet share", 
        title = "Homophily score by age and party") +
   theme_minimal()
