@@ -152,6 +152,8 @@ V(g)$age24 <- (2024 - nodes$born)
 
 <!-- - Connect findings back to the theoretical discussion. -->
 
+Overall, the network is moderately sized and active, but not densely connected. Members form many retweet ties in absolute terms, yet these ties represent only a small share of all possible member-to-member connections ($\approx 5\%$). The the typical congress member has around 22–24 connections, while a small number of members have far higher connectivity. This suggests a selective and uneven retweet structure, with activity concentrated around more central or more active members rather than spread uniformly across the network. This is to be expected given in politics there are often central figures that may receive more attention, such as presidents or speakers.
+
 ```{r}
 # Core descriptives: graph size
 
@@ -305,6 +307,8 @@ cat(
 )
 ```
 
+The network shows a moderate level of reciprocity: about 46% of directed ties are reciprocated. This suggests that interactions are not purely one-sided, but often occur between pairs of members who engage with each other, possibly congress members working on the same topics or from similar geographic regions. Transitivity is also moderate, with global and average local clustering around 0.27–0.30, indicating that interaction patterns are somewhat clustered within groups of mutually connected members. This is to be expected given we are not accounting for chamber affiliation and or party affiliation at the moment, so clustering is to be expected. The slightly negative degree assortativity (-0.096) suggests that members with many outgoing interactions are not especially likely to direct those interactions toward members with many incoming interactions. In other words, highly active congress members are not disproportionately interacting with highly visible or frequently targeted congress members.
+
 ```{r}
 # Homophily by party
 el <- igraph::as_data_frame(g, what = "edges")
@@ -314,6 +318,8 @@ mix <- xtabs(weight ~ from_party + to_party, data = el)
 mix_prop <- mix / rowSums(mix)
 cat("Overall\n", knitr::kable(round(mix_prop, 3), format = "pipe"), sep = "\n")
 ```
+
+We can see very strong party homophily: Democratic members mostly interact with Democrats (0.878), and Republican members mostly interact with Republicans (0.881). Cross-party interaction is much lower, around 0.12 in both directions. The "Independent" category is too small to interpret. As we can see below, there does not seem to be much difference in these homophily structures between the house and senate.
 
 ```{r}
 # Homophily by party by chamber
@@ -326,6 +332,8 @@ for (ch in c("House", "Senate")) {
   cat(ch, "\n", knitr::kable(round(mix_prop, 3), format = "pipe"), sep = "\n", "\n")
 }
 ```
+
+Left-right ideology is moderately strong (0.447), meaning members tend to interact with ideologically similar members. Assortativity on the social/racial dimension is weaker (0.119), and age assortativity is essentially negligible (0.038) which means that congress members do not interact more often with members of their age.
 
 ```{r}
 # assortativity
@@ -371,7 +379,9 @@ cat("Correlation between age and homophily:\n",cor(homophily_score$h_score, homo
 # by party --> democrats weakly positive (+0.04), republicans kind of substantially negative (-0.128)
 homophily_score %>%
   group_by(party) %>%
-  summarise(`Correlation Age <-> Homophily` = cor(h_score, age, use = "complete.obs")) %>%
-  mutate(`Correlation Age <-> Homophily` = round(`Correlation Age <-> Homophily`, 3)) %>%
+  summarise(`Correlation Age <-> Party Homophily` = cor(h_score, age, use = "complete.obs")) %>%
+  mutate(`Correlation Age <-> Party Homophily` = round(`Correlation Age <-> Party Homophily`, 3)) %>%
   { cat(knitr::kable(., format = "pipe"), sep = "\n") }
 ```
+
+Here, we are looking at whether the party homophily of individuals is higher or lower depending on their age. The correlation is very small and slightly negative (-0.034) overall, suggesting that older and younger members do not differ much in their tendency to interact within party. By party, the relationship is weakly positive for Democrats (0.048) and modestly negative for Republicans (-0.128), indicating that older Republican members are somewhat less party-homophilous in their tweet interactions.
