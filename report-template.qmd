@@ -153,6 +153,159 @@ V(g)$age24 <- (2024 - nodes$born)
 <!-- - Connect findings back to the theoretical discussion. -->
 
 ```{r}
+# Core descriptives: graph size
+
+n_vertices <- vcount(g)
+n_edges    <- ecount(g)
+density    <- edge_density(g)
+
+size_summary <- tibble::tibble(
+  Measure = c(
+    "Number of vertices",
+    "Number of edges",
+    "Edge density"
+  ),
+  Value = c(
+    n_vertices,
+    n_edges,
+    density
+  )
+) %>%
+  dplyr::mutate(Value = round(Value, 3))
+
+cat(
+  knitr::kable(
+    size_summary,
+    format = "pipe",
+    col.names = c("Measure", "Value")
+  ),
+  sep = "\n"
+)
+```
+
+```{r}
+# Degree and weighted degree / strength
+
+deg_in  <- degree(g, mode = "in")
+deg_out <- degree(g, mode = "out")
+
+str_in  <- strength(g, mode = "in")
+str_out <- strength(g, mode = "out")
+
+degree_summary <- tibble::tibble(
+  Measure = c(
+    "In-degree",
+    "Out-degree",
+    "Weighted in-strength",
+    "Weighted out-strength"
+  ),
+  Min = c(
+    min(deg_in, na.rm = TRUE),
+    min(deg_out, na.rm = TRUE),
+    min(str_in, na.rm = TRUE),
+    min(str_out, na.rm = TRUE)
+  ),
+  Q1 = c(
+    quantile(deg_in, 0.25, na.rm = TRUE),
+    quantile(deg_out, 0.25, na.rm = TRUE),
+    quantile(str_in, 0.25, na.rm = TRUE),
+    quantile(str_out, 0.25, na.rm = TRUE)
+  ),
+  Median = c(
+    median(deg_in, na.rm = TRUE),
+    median(deg_out, na.rm = TRUE),
+    median(str_in, na.rm = TRUE),
+    median(str_out, na.rm = TRUE)
+  ),
+  Mean = c(
+    mean(deg_in, na.rm = TRUE),
+    mean(deg_out, na.rm = TRUE),
+    mean(str_in, na.rm = TRUE),
+    mean(str_out, na.rm = TRUE)
+  ),
+  Q3 = c(
+    quantile(deg_in, 0.75, na.rm = TRUE),
+    quantile(deg_out, 0.75, na.rm = TRUE),
+    quantile(str_in, 0.75, na.rm = TRUE),
+    quantile(str_out, 0.75, na.rm = TRUE)
+  ),
+  Max = c(
+    max(deg_in, na.rm = TRUE),
+    max(deg_out, na.rm = TRUE),
+    max(str_in, na.rm = TRUE),
+    max(str_out, na.rm = TRUE)
+  )
+) %>%
+  dplyr::mutate(
+    dplyr::across(where(is.numeric), ~ round(.x, 3))
+  )
+
+cat(
+  knitr::kable(
+    degree_summary,
+    format = "pipe"
+  ),
+  sep = "\n"
+)
+```
+
+```{r}
+# Degree distributions
+
+par(mfrow = c(1, 2))
+
+hist(
+  deg_in,
+  main = "In-degree distribution",
+  xlab = "In-degree"
+)
+
+hist(
+  deg_out,
+  main = "Out-degree distribution",
+  xlab = "Out-degree"
+)
+
+par(mfrow = c(1, 1))
+```
+
+```{r}
+# Structural network measures
+
+recip <- reciprocity(g)
+
+trans_global <- transitivity(g, type = "global")
+trans_avg    <- transitivity(g, type = "average")
+
+assort_degree <- assortativity_degree(g, directed = TRUE)
+
+structure_summary <- tibble::tibble(
+  Measure = c(
+    "Reciprocity",
+    "Global transitivity",
+    "Average local transitivity",
+    "Degree assortativity"
+  ),
+  Value = c(
+    recip,
+    trans_global,
+    trans_avg,
+    assort_degree
+  )
+) %>%
+  dplyr::mutate(Value = round(Value, 3))
+
+cat(
+  knitr::kable(
+    structure_summary,
+    format = "pipe",
+    col.names = c("Measure", "Value")
+  ),
+  sep = "\n"
+)
+```
+
+```{r}
 # Homophily by party
 el <- igraph::as_data_frame(g, what = "edges")
 el$from_party <- V(g)$party[match(el$from, V(g)$name)]
@@ -219,6 +372,6 @@ cat("Correlation between age and homophily:\n",cor(homophily_score$h_score, homo
 homophily_score %>%
   group_by(party) %>%
   summarise(`Correlation Age <-> Homophily` = cor(h_score, age, use = "complete.obs")) %>%
-  mutate(`Correlation Age -> Homophily` = round(`Correlation Age -> Homophily`, 3)) %>%
+  mutate(`Correlation Age <-> Homophily` = round(`Correlation Age <-> Homophily`, 3)) %>%
   { cat(knitr::kable(., format = "pipe"), sep = "\n") }
 ```
