@@ -1,41 +1,194 @@
 ---
-title: "Whatever we will do"
+title: "Homophily in Congress on Social Media"
 author: "Marcel Julien Kalb, Mike Barth, Sam Känner"
 format:
   pdf
 ---
-# Section
-Your report should be approximately 3 pages (approximately 1000 words excluding code and output).
 
+<!-- # Instruction stuff -->
 
+<!-- - Your report should be approximately 3 pages (approximately 1000 words excluding code and output). -->
 
-Example code chunk
-```{r}
-# r code goes here
-# choose appropriate arguments, e.g. echo, warning, eval, etc.
+<!-- - Make sure to include reference list, in particular for the theory part of the report. -->
+
+# Introduction
+
+For our analysis, we are concerning ourselves with the [Twitter Interaction Network for US Congress](https://snap.stanford.edu/data/congress-twitter.html) by the SNAP. It represents Twitter activity among members of the 117th U.S. Congress. The dataset contains 475 congressional Twitter accounts connected by 13,289 directed, weighted edges. An edge represents an observed interaction between two members, including retweets, quote tweets, replies, and mentions. Edge weights capture the relative strength of these interactions and are modeled as a normalized measure of influence between accounts. As the dataset itself does not contain any node properties besides the names and usernames of the members, we are enriching it using data from [voteview](https://voteview.com/congress/senate/117/text) and [github/unitedstates](https://github.com/unitedstates/congress-legislators) which cover chamber and party affiliation, age, as well as ideological position scores.
+
+Our focus of analysis will be to assess homophily within the interaction network, based on different characteristics such as party affiliation, chamber and age. It has been shown quite thoroughly that party homophily exists, but we are most interested in whether tertiary factors such as chamber and age moderate this effect, e.g. do members of the senate exhibit more homophily than those in the house, and, do older members exhibit more or less homophily than their younger colleagues?
+
+# Data Pre-Processing
+
+```{r, echo=FALSE}
+pacman::p_load("igraph", "dplyr", "purrr", "tibble", "stringr")
+
+#### DATA ####
+
+data <- jsonlite::fromJSON("congress_network/congress_network_data.json", simplifyVector = FALSE)
+voteview <- readr::read_csv("HS117_members.csv", show_col_types=FALSE)
+
+leg <- yaml::read_yaml(
+  "https://raw.githubusercontent.com/unitedstates/congress-legislators/main/legislators-current.yaml",
+  handlers = list(int = function(x) x)
+)
+
+soc <- yaml::read_yaml(
+  "https://raw.githubusercontent.com/unitedstates/congress-legislators/main/legislators-social-media.yaml",
+  handlers = list(int = function(x) x)
+)
+
+inList <- data[[1]]$inList
+inWeight <- data[[1]]$inWeight
+outList <- data[[1]]$outList
+outWeight <- data[[1]]$outWeight
+usernameList <- data[[1]]$usernameList
+
+edges <- do.call(
+  rbind, lapply(seq_along(outList), function(i) {
+    if (length(outList[[i]]) == 0) return(NULL)
+    data.frame(
+      from = i - 1,                    
+      to = unlist(outList[[i]]),
+      weight = unlist(outWeight[[i]]))}))
+
+g <- graph_from_data_frame(d = edges, directed = TRUE, vertices = data.frame(name = seq_along(usernameList) - 1, username = unlist(usernameList)))
+
+#### Attributes ####
+
+# V(g)$username # username
+# V(g)$name # id
+
+`%||%` <- function(x, y) if (is.null(x)) y else x
+
+members <- purrr::map_dfr(leg, function(x) {
+  terms <- x$terms
+  
+  purrr::map_dfr(terms, function(term) {
+    tibble::tibble(
+      bioguide_id = x$id$bioguide %||% NA_character_,
+      first_name  = x$name$first %||% NA_character_,
+      last_name   = x$name$last %||% NA_character_,
+      full_name   = paste(x$name$first %||% "", x$name$last %||% ""),
+      type        = term$type %||% NA_character_,
+      state       = term$state %||% NA_character_,
+      district    = as.character(term$district %||% NA_character_),
+      party       = term$party %||% NA_character_,
+      term_start  = as.Date(term$start),
+      term_end    = as.Date(term$end)
+    )
+  })
+})
+
+social <- map_dfr(soc, function(x) {
+  tibble(
+    bioguide_id = x$id$bioguide %||% NA_character_,
+    twitter = x$social$twitter %||% NA_character_
+  )
+})
+
+members <- members %>%
+  left_join(social, by = "bioguide_id")
+
+members_117 <- members %>%
+  filter(term_start < as.Date("2023-01-03"), term_end > as.Date("2021-01-03")) %>%
+  mutate(
+    chamber = case_when(
+      type == "sen" ~ "Senate",
+      type == "rep" ~ "House",
+      TRUE ~ NA_character_
+    ),
+    twitter_clean = str_to_lower(str_remove(twitter, "^@"))
+  )
+
+members_117_one <- members_117 %>%
+  filter(!is.na(twitter_clean), twitter_clean != "") %>%
+  arrange(twitter_clean, term_start) %>%
+  group_by(twitter_clean) %>%
+  summarise(
+    bioguide_id = first(bioguide_id),
+    full_name = first(full_name),
+    chamber = first(chamber),
+    party = first(party),
+    state = first(state),
+    district = first(district),
+    term_start = min(term_start, na.rm = TRUE),
+    term_end = max(term_end, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+graph_vertices <- tibble(
+  name = V(g)$name,
+  username = V(g)$username,
+  twitter_clean = str_to_lower(str_remove(V(g)$username, "^@")))
+
+vertex_metadata <- graph_vertices %>%
+  left_join(members_117_one, by = "twitter_clean")
+
+V(g)$full_name <- vertex_metadata$full_name
+V(g)$chamber <- vertex_metadata$chamber
+V(g)$party <- vertex_metadata$party
+V(g)$state <- vertex_metadata$state
+V(g)$district <- vertex_metadata$district
+V(g)$bioguide_id <- vertex_metadata$bioguide_id
+
+# IDEOLOGY
+nodes <- tibble(idx = seq_len(vcount(g)), bioguide_id  = V(g)$bioguide_id) %>%
+  left_join(voteview, by = "bioguide_id")
+
+V(g)$icpsr <- nodes$icpsr
+V(g)$nominate_dim1 <- nodes$nominate_dim1
+V(g)$nominate_dim2 <- nodes$nominate_dim2
+V(g)$born <- nodes$born
+V(g)$age24 <- (2024 - nodes$born) 
 ```
 
-## Table
+# Exploratory Data Analysis
 
+<!-- - Describe key characteristics of the network. -->
 
-If you want a table you can make one with [this website](https://www.tablesgenerator.com/markdown_tables) and paste the markdown table here. For example:
+<!-- - Calculate relevant network statistics. -->
 
-| A | B | C | D | E |
-|---|---|---|---|---|
-| a | b | c | d | e |
-| a | b | c | d | e |
-| a | b | c | d | e |
+<!-- - Interpret the results rather than simply reporting them. -->
 
+<!-- - Connect findings back to the theoretical discussion. -->
 
-You can also use `knitr::kable()`.
+```{r}
+# Homophily by party
+el <- igraph::as_data_frame(g, what = "edges")
+el$from_party <- V(g)$party[match(el$from, V(g)$name)]
+el$to_party   <- V(g)$party[match(el$to, V(g)$name)]
+mix <- xtabs(weight ~ from_party + to_party, data = el)
+mix_prop <- mix / rowSums(mix)
+cat("Overall\n", knitr::kable(round(mix_prop, 3), format = "pipe"), sep = "\n")
+```
 
+```{r}
+# Homophily by party by chamber
+el$from_chamber <- V(g)$chamber[match(el$from, V(g)$name)]
 
-## External images
+for (ch in c("House", "Senate")) {
+  el_ch <- el[!is.na(el$from_chamber) & el$from_chamber == ch, ]
+  mix   <- xtabs(weight ~ from_party + to_party, data = el_ch)
+  mix_prop <- mix / rowSums(mix)
+  cat(ch, "\n", knitr::kable(round(mix_prop, 3), format = "pipe"), sep = "\n", "\n")
+}
+```
 
+```{r}
+# assortativity
+leftrightass <- assortativity(g, V(g)$nominate_dim1, directed = TRUE) # L/R
+socialracialass <- assortativity(g, V(g)$nominate_dim2, directed = TRUE) # social/racial issues
+ageass <- assortativity(g, V(g)$age24, directed = TRUE) # age -> basically none
 
-![My Caption Here](https://media.istockphoto.com/id/1322277517/photo/wild-grass-in-the-mountains-at-sunset.jpg?s=612x612&w=0&k=20&c=6mItwwFFGqKNKEAzv0mv6TaxhLN3zSE43bWmFN--J5w=){width=600}
+assort_table <- data.frame( dimension = c("Left-right", "Social/racial issues", "Age"), assortativity = c(leftrightass, socialracialass, ageass))
 
-(Note that the `width=300` argument controls how wide your image will be.)
-
-# References
-Make sure to include reference list, in particular for the theory part of the report.
+cat(
+  knitr::kable(
+    assort_table,
+    digits = 3,
+    col.names = c("Dimension", "Assortativity"),
+    format = "pipe"
+  ),
+  sep = "\n"
+)
+```
