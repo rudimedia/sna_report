@@ -150,6 +150,20 @@ V(g)$chamber   <- vertex_metadata$chamber
 V(g)$party     <- vertex_metadata$party
 V(g)$state     <- vertex_metadata$state
 V(g)$district  <- vertex_metadata$district
+V(g)$bioguide_id  <- vertex_metadata$bioguide_id
+
+library(readr)
+voteview <- read_csv("HS117_members.csv")
+
+nodes <- tibble(idx = seq_len(vcount(g)), bioguide_id  = V(g)$bioguide_id) %>%
+  left_join(voteview, by = "bioguide_id")
+
+## push columns back onto the graph (nodes is in vertex order)
+V(g)$icpsr <- nodes$icpsr
+V(g)$nominate_dim1 <- nodes$nominate_dim1
+V(g)$nominate_dim2 <- nodes$nominate_dim2
+V(g)$born <- nodes$born
+V(g)$age24 <- (2024 - nodes$born)
 
 #### FULL DATASET ####
 
@@ -157,7 +171,100 @@ V(g)$username
 V(g)$full_name
 V(g)$chamber
 V(g)$party
-V(g)$state
-V(g)$district
+V(g)$nominate_dim1
+V(g)$nominate_dim2
+V(g)$age24
 
 E(g)$weight
+
+
+#### DESCRIPTIVES ####
+
+# size
+vcount(g)          
+ecount(g)          
+edge_density(g)
+
+# degree
+summary(degree(g, mode = "in"))
+summary(degree(g, mode = "out"))
+
+# weighted versions (strength)
+summary(strength(g, mode = "in"))
+summary(strength(g, mode = "out"))
+
+# degree distrivution
+par(mfrow = c(1, 2))
+hist(deg_in,  main = "In-degree distribution",  xlab = "In-degree")
+hist(deg_out, main = "Out-degree distribution", xlab = "Out-degree")
+
+# Reciprocity: do they reciprocate retweets? -> 0.46
+reciprocity(g)
+
+# Transitivity: If A retweets B, and B retweets C, does A retweet C? --> moderate
+transitivity(g, type = "global")
+transitivity(g, type = "average")  # average local clustering coefficient
+
+# Assortativity: do high degree members retweet each other? --> no
+assortativity_degree(g, directed = TRUE)
+
+
+
+### HOMOPHILY by PARTY ####
+el <- igraph::as_data_frame(g, what = "edges")
+el$from_party <- V(g)$party[match(el$from, V(g)$name)]
+el$to_party   <- V(g)$party[match(el$to, V(g)$name)]
+mix <- xtabs(weight ~ from_party + to_party, data = el)
+mix_prop <- mix / rowSums(mix)
+round(mix_prop, 3)
+
+# by chamber
+el$from_chamber <- V(g)$chamber[match(el$from, V(g)$name)]
+
+for (ch in c("House", "Senate")) {
+  el_ch <- el[!is.na(el$from_chamber) & el$from_chamber == ch, ]
+  mix   <- xtabs(weight ~ from_party + to_party, data = el_ch)
+  mix_prop <- mix / rowSums(mix)
+  print(ch)
+  print(round(mix_prop, 3))
+}
+
+#### Assortativity for continous measures ####
+assortativity(g, V(g)$nominate_dim1, directed = TRUE) # L/R
+assortativity(g, V(g)$nominate_dim2, directed = TRUE) # social/racial issues
+assortativity(g, V(g)$age24, directed = TRUE) # age -> basically none
+
+#### Homophily higher for older members? ####
+el$same_party <- !is.na(el$from_party) & 
+  !is.na(el$to_party) & 
+  el$from_party == el$to_party
+
+# filter NAs
+el_known <- el %>% filter(!is.na(from_party), !is.na(to_party))
+# exclude Independents
+el_known <- el_known[el_known$from_party != "Independent" & el_known$to_party != "Independent", ]
+
+# per-node homophily score
+homophily_score <- el_known %>%
+  group_by(from) %>%
+  summarise(total_w = sum(weight), ingroup_w = sum(weight[same_party]), h_score   = ingroup_w / total_w)
+
+homophily_score$age <- V(g)$age24[match(homophily_score$from, V(g)$name)]
+homophily_score$party <- V(g)$party[match(homophily_score$from, V(g)$name)]
+
+# correlation
+cor(homophily_score$h_score, homophily_score$age, use = "complete.obs")
+
+# by party --> democrats weakly positive (+0.04), republicans kind of substantially negative (-0.128)
+homophily_score %>%
+  group_by(party) %>%
+  summarise(cor_age = cor(h_score, age, use = "complete.obs"))
+
+# scatterplot by party
+ggplot(homophily_score, aes(x = age, y = h_score, colour = party)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = TRUE) +
+  scale_colour_manual(values = c(Democrat = "blue", Republican = "red", Independent = "green")) +
+  labs(x = "Age", y = "Within-party retweet share", 
+       title = "Homophily score by age and party") +
+  theme_minimal()
