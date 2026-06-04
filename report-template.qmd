@@ -192,3 +192,33 @@ cat(
   sep = "\n"
 )
 ```
+
+```{r}
+# Homophily by age
+el$same_party <- !is.na(el$from_party) & 
+  !is.na(el$to_party) & 
+  el$from_party == el$to_party
+
+# filter NAs
+el_known <- el %>% filter(!is.na(from_party), !is.na(to_party))
+# exclude Independents
+el_known <- el_known[el_known$from_party != "Independent" & el_known$to_party != "Independent", ]
+
+# per-node homophily score
+homophily_score <- el_known %>%
+  group_by(from) %>%
+  summarise(total_w = sum(weight), ingroup_w = sum(weight[same_party]), h_score   = ingroup_w / total_w)
+
+homophily_score$age <- V(g)$age24[match(homophily_score$from, V(g)$name)]
+homophily_score$party <- V(g)$party[match(homophily_score$from, V(g)$name)]
+
+# correlation
+cat("Correlation between age and homophily:\n",cor(homophily_score$h_score, homophily_score$age, use = "complete.obs"), "\n\n")
+
+# by party --> democrats weakly positive (+0.04), republicans kind of substantially negative (-0.128)
+homophily_score %>%
+  group_by(party) %>%
+  summarise(`Correlation Age <-> Homophily` = cor(h_score, age, use = "complete.obs")) %>%
+  mutate(`Correlation Age -> Homophily` = round(`Correlation Age -> Homophily`, 3)) %>%
+  { cat(knitr::kable(., format = "pipe"), sep = "\n") }
+```
