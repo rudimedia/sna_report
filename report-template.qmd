@@ -17,6 +17,10 @@ For our analysis, we are concerning ourselves with the [Twitter Interaction Netw
 
 Our focus of analysis will be to assess homophily within the interaction network, based on different characteristics such as party affiliation, chamber and age. It has been shown quite thoroughly that party homophily exists, but we are most interested in whether tertiary factors such as chamber and age moderate this effect, e.g. do members of the senate exhibit more homophily than those in the house, and, do older members exhibit more or less homophily than their younger colleagues?
 
+# Theory
+
+xxx
+
 # Data Pre-Processing
 
 ```{r, echo=FALSE}
@@ -385,3 +389,11 @@ homophily_score %>%
 ```
 
 Here, we are looking at whether the party homophily of individuals is higher or lower depending on their age. The correlation is very small and slightly negative (-0.034) overall, suggesting that older and younger members do not differ much in their tendency to interact within party. By party, the relationship is weakly positive for Democrats (0.048) and modestly negative for Republicans (-0.128), indicating that older Republican members are somewhat less party-homophilous in their tweet interactions.
+
+# Visualisation
+
+xxx
+
+# Conclusion
+
+xxx
