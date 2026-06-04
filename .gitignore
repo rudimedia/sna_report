@@ -4,3 +4,7 @@
 .Ruserdata
 .positai
 gfortran-12.2-darwin20-r0-universal.tar.xz
+
+# Large local compiler archive
+/gfortran-12.2-darwin20-r0-universal.tar.xz
+/gfortran-12.2-darwin20-r0-universal.tar.xz01~
