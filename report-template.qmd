@@ -39,7 +39,7 @@ Assortativity is the network-level measure that formally captures homophily. @ne
 # Data Pre-Processing
 
 ```{r, echo=FALSE}
-pacman::p_load("igraph", "dplyr", "purrr", "tibble", "stringr", "ggraph", "graphlayouts")
+pacman::p_load("igraph", "dplyr", "purrr", "tibble", "stringr", "ggraph", "graphlayouts", "oaqc")
 
 #### DATA ####
 
@@ -322,7 +322,7 @@ cat(
 )
 ```
 
-The network shows a moderate level of reciprocity: about 46% of directed ties are reciprocated. This suggests that interactions are not purely one-sided, but often occur between pairs of members who engage with each other, possibly congress members working on the same topics or from similar geographic regions. Transitivity is also moderate, with global and average local clustering around 0.27–0.30, indicating that interaction patterns are somewhat clustered within groups of mutually connected members. This is to be expected given we are not accounting for chamber affiliation and or party affiliation at the moment, so clustering is to be expected. The slightly negative degree assortativity (-0.096) suggests that members with many outgoing interactions are not especially likely to direct those interactions toward members with many incoming interactions. In other words, highly active congress members are not disproportionately interacting with highly visible or frequently targeted congress members.
+A moderate 46% of directed ties are reciprocated. This suggests that interactions are not purely one-sided, but often occur between pairs of members who engage with each other, possibly congress members working on the same topics or from similar geographic regions. Transitivity is also moderate, with global and average local clustering around 0.280, indicating that interaction patterns are somewhat clustered within groups of mutually connected members. This is to be expected given we are not accounting for chamber affiliation and or party affiliation at the moment, so clustering is to be expected. The slightly negative degree assortativity (-0.096) suggests that members with many outgoing interactions are not especially likely to direct those interactions toward members with many incoming interactions. In other words, highly active congress members are not disproportionately interacting with highly visible or frequently targeted congress members.
 
 ```{r}
 # Homophily by party
@@ -334,7 +334,7 @@ mix_prop <- mix / rowSums(mix)
 cat("Overall\n", knitr::kable(round(mix_prop, 3), format = "pipe"), sep = "\n")
 ```
 
-We can see very strong party homophily: Democratic members mostly interact with Democrats (0.874), and Republican members mostly interact with Republicans (0.877). Cross-party interaction is much lower, around 0.12 in both directions. The "Independent" category is too small to interpret. As we can see below, there does not seem to be much difference in these homophily structures between the house and senate.
+We can see very strong party homophily: Democratic members mostly interact with Democrats (0.874), and Republican members mostly interact with Republicans (0.877). The nominal assortativity measure confirms this finding (0.715). Cross-party interaction is much lower, around 0.12 in both directions. The "Independent" category is too small to interpret. As we can see below, there does not seem to be much difference in these homophily structures between the house and senate.
 
 ```{r}
 # nominal assortativity
