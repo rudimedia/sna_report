@@ -334,7 +334,7 @@ mix_prop <- mix / rowSums(mix)
 cat("Overall\n", knitr::kable(round(mix_prop, 3), format = "pipe"), sep = "\n")
 ```
 
-We can see very strong party homophily: Democratic members mostly interact with Democrats (0.874), and Republican members mostly interact with Republicans (0.877). The nominal assortativity measure confirms this finding (0.715). Cross-party interaction is much lower, around 0.12 in both directions. The "Independent" category is too small to interpret. As we can see below, there does not seem to be much difference in these homophily structures between the house and senate.
+The network shows strong party homophily. Democratic members direct most of their interaction weight to Democrats (0.874), and Republican members direct most of their interaction weight to Republicans (0.877). Democrat–Republican interaction is much lower and roughly symmetric, at about 0.12 in both directions. The nominal assortativity coefficient is high and positive (0.715), confirming strong assortative mixing by party relative to a baseline expectation. The Independent category is too small to interpret reliably. Shown below, homophily does not differ between the chambers, thus there do not seem to be different cross-party interaction incentives between them.
 
 ```{r}
 # nominal assortativity
@@ -520,7 +520,7 @@ ggraph(ego_out, layout = "focus", focus = focal_idx2) +
        subtitle = "Top 10 out-edges by transmission probability. \nValues below nodes indicate DW-Nominate dimension 1.")
 ```
 
-We look at the top 10 edges of an example node, Nancy Pelosi, in an ego network. She has the highest out-degree of all nodes. Despite the majority of the nodes following party and ideology homophily, there are major exceptions, particularly with Jim Banks who has an ideological distance of 1.14 to Pelosi. This is likely a result of conflict interaction rather than collaboration. This illustrates that aggregate homophily patterns can coexist with meaningful individual-level violations, particularly among high-visibility leadership figures.
+As an addition, we look at the top 10 edges of an example node, Nancy Pelosi, in an ego network. She has the highest out-degree of all nodes. Despite the majority of the nodes following party and ideology homophily, there are major exceptions, particularly with Jim Banks who has an ideological distance of 1.14 to Pelosi. This is likely a result of conflict interaction rather than collaboration. This illustrates that aggregate homophily patterns can coexist with meaningful individual-level violations, particularly among high-visibility leadership figures.
 
 # Conclusion
 
