@@ -19,9 +19,11 @@ Our focus of analysis will be to assess homophily within the interaction network
 
 # Theory
 
-Homophily is the principle that contact between similar people occurs at a higher rate than among dissimilar people. It can be further distinguished in two types: *status homophily* as the similarity of persons in their formal, informal or ascribed status and *value homophily* based on shared believes, values and attitudes of persons. 
+Homophily is the principle that contact between similar people occurs at a higher rate than among dissimilar people. It can be further distinguished in two types: *status homophily* as the similarity of persons in their formal, informal or ascribed status and *value homophily* based on shared believes, values and attitudes of persons [(McPherson et al., 2001)](https://doi.org/10.1146/annurev.soc.27.1.415). 
 We take the party affiliation, the chamber and the age as status homophily and expect that the number of ties between members of congress is shaped by their status, e.g. congress members mostly interact with members of their own party.
-Age is expected to further shape the number of connections, since people tend to form ties with those of similar life stage, older legislators may have formed cross-party relationships before the current era of polarization, but also older members may tend to be less active on twitter. Also a legislators chamber structures the opportunity for interaction, as Senate and House members operate in largely separate institutional environments with different rules, schedules, and legislative responsibilities, making cross-chamber ties less likely to form regardless of party.
+Age is expected to further shape the number of connections, since people tend to form ties with those of similar life stage [(McPherson et al., 2001)](https://doi.org/10.1146/annurev.soc.27.1.415), older legislators may have formed cross-party relationships before the current era of polarization, but also older members may tend to be less active on twitter. Also a legislators chamber structures the opportunity for interaction, as Senate and House members operate in largely separate institutional environments with different rules, schedules, and legislative responsibilities, making cross-chamber ties less likely to form regardless of party.
+Value homophily is captured as left-right ideological position and stance on social and racial issues. There is a considerable tendency for adults to associate with those of their own political orientations [(McPherson et al., 2001)](https://doi.org/10.1146/annurev.soc.27.1.415). Therefore, we expect to find more interactions between members with similar positioning in the ideological dimensions. 
+
 
 
 # Data Pre-Processing
