@@ -522,30 +522,6 @@ ggraph(ego_out, layout = "focus", focus = focal_idx2) +
 
 We look at the top 10 edges of an example node, Nancy Pelosi, in an ego network. She has the highest out-degree of all nodes. Despite the majority of the nodes following party and ideology homophily, there are major exceptions, particularly with Jim Banks who has an ideological distance of 1.14 to Pelosi. This is likely a result of conflict interaction rather than collaboration. This illustrates that aggregate homophily patterns can coexist with meaningful individual-level violations, particularly among high-visibility leadership figures.
 
-```{r fig.width = 10, fig.height = 5}
-el <- igraph::as_data_frame(g, what = "edges")
-el$from_party    <- V(g)$party[match(el$from, V(g)$name)]
-el$to_party      <- V(g)$party[match(el$to,   V(g)$name)]
-el$from_dim1     <- V(g)$nominate_dim1[match(el$from, V(g)$name)]
-el$to_dim1       <- V(g)$nominate_dim1[match(el$to,   V(g)$name)]
-el$ideo_distance <- abs(el$from_dim1 - el$to_dim1)
-
-assort_by_bin <- el %>%
-  filter(!is.na(from_party), !is.na(to_party), !is.na(ideo_distance),
-         from_party != "Independent", to_party != "Independent") %>%
-  mutate(
-    edge_type    = ifelse(from_party == to_party, "Within-party", "Cross-party"),
-    distance_bin = cut(ideo_distance, breaks = seq(0, 2, by = 0.25),
-                       include.lowest = TRUE)
-  ) %>%
-  group_by(edge_type, distance_bin) %>%
-  summarise(n_edges = n(), mean_weight = mean(weight), .groups = "drop") %>%
-  filter(!is.na(distance_bin)) %>%
-  tidyr::complete(edge_type, distance_bin)
-```
-
-Looking at mean edge weights by ideological distance, we high interaction within parties on low ideological distance. Similar high interaction persists across parties even as distance increases. Only at the highest distance bin does it decrease, meaningful interaction across parties exists up to a threshold. We might expect interaction to increase at extreme ideological differences due to conflict, but we do not observe this. It suggests that conflict-driven engagement, while present, does not dominate aggregate interaction patterns.
-
 # Conclusion
 
 Results consistently confirm strong symmetric partisan homophily, across both parties and chambers. Ideological assortativity on the left-right dimension reinforces this pattern, while the social-racial dimension and age produce much weaker effects. Network visualizations confirm partisan and ideological clustering. Exceptions exist, though these ties likely reflect conflict interaction rather than cross-party collaboration.
