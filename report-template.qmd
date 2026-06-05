@@ -173,14 +173,6 @@ data.frame(
 
 # Exploratory Data Analysis
 
-<!-- - Describe key characteristics of the network. -->
-
-<!-- - Calculate relevant network statistics. -->
-
-<!-- - Interpret the results rather than simply reporting them. -->
-
-<!-- - Connect findings back to the theoretical discussion. -->
-
 Overall, the network is moderately sized and active, but not densely connected. Members form many retweet ties in absolute terms, yet these ties represent only a small share of all possible member-to-member connections ($\approx 5\%$). The the typical congress member has around 22–24 connections, while a small number of members have far higher connectivity. This suggests a selective and uneven retweet structure, with activity concentrated around more central or more active members rather than spread uniformly across the network. This is to be expected given in politics there are often central figures that may receive more attention, such as presidents or speakers.
 
 ```{r}
@@ -301,6 +293,45 @@ par(mfrow = c(1, 1))
 ```
 
 ```{r}
+node_df <- tibble(
+  name    = V(g)$name,
+  age     = V(g)$age24,
+  deg_in  = degree(g, mode = "in"),
+  deg_out = degree(g, mode = "out"),
+  str_in  = strength(g, mode = "in"),
+  str_out = strength(g, mode = "out")
+) %>%
+  filter(!is.na(age)) %>%
+  mutate(age_bin = cut(age, breaks = seq(30, 90, by = 10), include.lowest = TRUE))
+
+age_summary <- node_df %>%
+  group_by(age_bin) %>%
+  summarise(
+    n        = n(),
+    deg_in   = round(median(deg_in),  1),
+    deg_out  = round(median(deg_out), 1),
+    str_in   = round(median(str_in),  4),
+    str_out  = round(median(str_out), 4),
+    .groups  = "drop"
+  )
+
+cat("Median degree values by age bin\n")
+cat(knitr::kable(age_summary,
+                 col.names = c("Age", "N", "in-degree", "out-degree",
+                               "in-strength", "out-strength"),
+                 format = "pipe"), sep = "\n")
+
+cat("\nSpearman correlations with age:\n")
+cat("In-degree:         ", round(cor(node_df$age, node_df$deg_in,  method = "spearman", use = "complete.obs"), 3), "\n")
+cat("Out-degree:        ", round(cor(node_df$age, node_df$deg_out, method = "spearman", use = "complete.obs"), 3), "\n")
+cat("In-strength:       ", round(cor(node_df$age, node_df$str_in,  method = "spearman", use = "complete.obs"), 3), "\n")
+cat("Out-strength:      ", round(cor(node_df$age, node_df$str_out, method = "spearman", use = "complete.obs"), 3), "\n")
+
+# we find a slight effect of age on twitter activity with older members tending to be less active 
+# note, however, the large difference in N. 
+```
+
+```{r}
 # Structural network measures
 
 recip <- reciprocity(g)
@@ -348,7 +379,14 @@ mix_prop <- mix / rowSums(mix)
 cat("Overall\n", knitr::kable(round(mix_prop, 3), format = "pipe"), sep = "\n")
 ```
 
-We can see very strong party homophily: Democratic members mostly interact with Democrats (0.878), and Republican members mostly interact with Republicans (0.881). Cross-party interaction is much lower, around 0.12 in both directions. The "Independent" category is too small to interpret. As we can see below, there does not seem to be much difference in these homophily structures between the house and senate.
+We can see very strong party homophily: Democratic members mostly interact with Democrats (0.874), and Republican members mostly interact with Republicans (0.877). Cross-party interaction is much lower, around 0.12 in both directions. The "Independent" category is too small to interpret. As we can see below, there does not seem to be much difference in these homophily structures between the house and senate.
+
+```{r}
+# nominal assortativity
+g_clean <- subgraph(g, which(!is.na(V(g)$party)))
+party_int <- as.integer(as.factor(V(g_clean)$party))
+assortativity_nominal(g_clean, types = party_int, directed = TRUE)
+```
 
 ```{r}
 # Homophily by party by chamber
@@ -362,15 +400,17 @@ for (ch in c("House", "Senate")) {
 }
 ```
 
-Left-right ideology is moderately strong (0.447), meaning members tend to interact with ideologically similar members. Assortativity on the social/racial dimension is weaker (0.119), and age assortativity is essentially negligible (0.038) which means that congress members do not interact more often with members of their age.
+Left-right ideology assortativity is similarly strong as that of party membership (0.739), meaning members tend to interact with ideologically similar members. Assortativity on the social/racial dimension is weaker (0.225), and age assortativity is essentially negligible (0.101) which means that congress members rarely interact more often with members of their age.
 
 ```{r}
-# assortativity
-leftrightass <- assortativity(g, V(g)$nominate_dim1, directed = TRUE) # L/R
-socialracialass <- assortativity(g, V(g)$nominate_dim2, directed = TRUE) # social/racial issues
-ageass <- assortativity(g, V(g)$age24, directed = TRUE) # age -> basically none
+g_clean <- induced_subgraph(g, which(!is.na(V(g)$nominate_dim1))) # ensure only non-na values are assessed
 
-assort_table <- data.frame( dimension = c("Left-right", "Social/racial issues", "Age"), assortativity = c(leftrightass, socialracialass, ageass))
+# assortativity
+leftrightass <- assortativity(g_clean, V(g_clean)$nominate_dim1, directed = TRUE)
+socialracialass <- assortativity(g_clean, V(g_clean)$nominate_dim2, directed = TRUE)
+ageass <- assortativity(g_clean, V(g_clean)$age24, directed = TRUE)
+
+assort_table <- data.frame(dimension = c("Left-right", "Social/racial issues", "Age"), assortativity = c(leftrightass, socialracialass, ageass))
 
 cat(
   knitr::kable(
@@ -413,11 +453,209 @@ homophily_score %>%
   { cat(knitr::kable(., format = "pipe"), sep = "\n") }
 ```
 
-Here, we are looking at whether the party homophily of individuals is higher or lower depending on their age. The correlation is very small and slightly negative (-0.034) overall, suggesting that older and younger members do not differ much in their tendency to interact within party. By party, the relationship is weakly positive for Democrats (0.048) and modestly negative for Republicans (-0.128), indicating that older Republican members are somewhat less party-homophilous in their tweet interactions.
+Here, we are looking at whether the party homophily of individuals is higher or lower depending on their age. The correlation is very small and slightly negative (-0.038) overall, suggesting that older and younger members do not differ much in their tendency to interact within party. By party, the relationship is weakly positive for Democrats (0.058) and modestly negative for Republicans (-0.138), indicating that older Republican members are somewhat less party-homophilous in their tweet interactions.
 
-# Visualisation
+# Visualization
 
-xxx
+```{r}
+g_party <- subgraph(g, which(!is.na(V(g)$party)))
+no_of_nodes <- vcount(g_party)  
+
+set.seed(7341)
+
+# stress layout with inverted edge weights
+ggraph(g_party, layout = "stress", weights = 1 / E(g_party)$weight) +
+  geom_edge_link0(edge_colour = "grey70", edge_alpha = 0.4, edge_width = 0.2) +
+  geom_node_point(aes(fill = party), shape = 21, size = 2) +
+  scale_fill_manual(
+    values = c("Democrat" = "#185FA5", "Republican" = "#A32D2D",
+               "Independent" = "#E69500"),
+    name   = "Party"
+  ) +
+  theme_graph(base_family = "") +
+  labs(title = "Congressional Twitter network",
+       subtitle = paste0("Nodes with known party only (n = ", no_of_nodes, ")"))
+```
+
+```{r}
+set.seed(7341)
+
+# backbone layout needs an undirected graph so we collapse edges using the mean of in and out
+g_party_un <- as_undirected(g_party, mode = "collapse", edge.attr.comb = "mean")
+
+ggraph(g_party_un, layout = "backbone") +
+  geom_edge_link0(edge_colour = "grey70", edge_alpha = 0.4, edge_width = 0.2) +
+  geom_node_point(aes(fill = party), shape = 21, size = 2) +
+  scale_fill_manual(
+    values = c("Democrat" = "#185FA5", "Republican" = "#A32D2D",
+               "Independent" = "#E69500"),
+    name   = "Party"
+  ) +
+  theme_graph(base_family = "") +
+  labs(title = "Congressional Twitter network",
+       subtitle = paste0("Nodes with known party only (n = ", no_of_nodes, ")"))
+```
+
+```{r}
+# fill is a gradient by ideology dim1, party is the color contour
+ggraph(g_party_un, layout = "backbone") +
+  geom_edge_link0(edge_colour = "grey70", edge_alpha = 0.4, edge_width = 0.2) +
+  geom_node_point(aes(fill = nominate_dim1, colour = party), shape = 21, size = 2, stroke = 1) +
+  scale_fill_gradient2(
+    low      = "#185FA5",
+    mid      = "white",
+    high     = "#A32D2D",
+    midpoint = 0,
+    name     = "Ideology\n(dim1)"
+  ) +
+  scale_colour_manual(
+    values = c("Democrat" = "#185FA5", "Republican" = "#A32D2D",
+               "Independent" = "#E69500"),
+    name   = "Party"
+  ) +
+  theme_graph(base_family = "") +
+  labs(title    = "Congressional Twitter network",
+       subtitle = paste0("Nodes with known party only (n = ", no_of_nodes, ")"))
+```
+
+This shows both party and ideology homophily. Higher ideology values cluster together and vice versa. The most noticeable example is the dense republican cluster. We find a couple nodes in opposite party clusters (look at an example in an ego network?)
+
+The single independent node (Bernie Sanders) interacts largely with Democrats as expected
+
+```{r}
+max_node <- which.max(degree(g, mode = "out"))
+cat("Username :", V(g)$username[max_node], "\n")
+cat("Full name:", V(g)$full_name[max_node], "\n")
+cat("Party    :", V(g)$party[max_node], "\n")
+cat("Age      :", V(g)$age24[max_node], "\n")
+cat("Out-degree:", degree(g, mode = "out")[max_node], "\n")
+cat("Out-strength:", round(strength(g, mode = "out")[max_node], 4), "\n")
+
+focal_name    <- V(g)$name[V(g)$username == "SpeakerPelosi"]
+ego_g         <- make_ego_graph(g, order = 1,
+                                nodes = which(V(g)$name == focal_name),
+                                mode = "all")[[1]]
+focal_idx_ego <- which(V(ego_g)$name == focal_name)
+
+# Top 10 out-edges 
+eligible_eids <- as.integer(incident(ego_g, focal_idx_ego, mode = "out"))
+top10_out_idx <- eligible_eids[order(E(ego_g)$weight[eligible_eids], decreasing = TRUE)][1:10]
+ego_out       <- subgraph_from_edges(ego_g, eids = top10_out_idx, delete.vertices = TRUE)
+ego_out       <- induced_subgraph(ego_out, which(!is.na(V(ego_out)$party)))
+focal_idx2    <- which(V(ego_out)$name == focal_name)
+
+ggraph(ego_out, layout = "focus", focus = focal_idx2) +
+  draw_circle(col = "grey80", use = "focus", max.circle = 1) +
+  geom_edge_link0(aes(edge_width = weight), edge_colour = "grey25", edge_alpha = 0.5) +
+  scale_edge_width_continuous(name = "Transmission\nprobability", range = c(0.3, 2.5)) +
+  geom_node_point(aes(fill = party), shape = 21, size = 3) +
+  scale_fill_manual(
+    values   = c("Democrat" = "#185FA5", "Republican" = "#A32D2D",
+                 "Independent" = "#534AB7"),
+    na.value = "grey80",
+    name     = "Party"
+  ) +
+  geom_node_text(aes(label = full_name), size = 2.5, vjust = -1) +
+  geom_node_text(
+    aes(label = round(nominate_dim1, 2)),
+    size = 2.2, vjust = 2, colour = "black"
+  ) +
+  theme_graph(base_family = "") +
+  coord_cartesian(clip = "off") +
+  labs(title    = paste("Ego network:", V(ego_out)$full_name[focal_idx2]),
+       subtitle = "Top 10 out-edges by transmission probability. \nValues below nodes indicate DW-Nominate dimension 1.")
+```
+
+```{r fig.width = 10, fig.height = 5}
+
+el <- igraph::as_data_frame(g, what = "edges")
+el$from_party  <- V(g)$party[match(el$from, V(g)$name)]
+el$to_party    <- V(g)$party[match(el$to,   V(g)$name)]
+el$from_dim1   <- V(g)$nominate_dim1[match(el$from, V(g)$name)]
+el$to_dim1     <- V(g)$nominate_dim1[match(el$to,   V(g)$name)]
+el$ideo_distance <- abs(el$from_dim1 - el$to_dim1)
+
+assort_by_bin <- el %>%
+  filter(!is.na(from_party), !is.na(to_party), !is.na(ideo_distance)) %>%
+  mutate(
+    edge_type    = ifelse(from_party == to_party, "Within-party", "Cross-party"),
+    distance_bin = cut(ideo_distance, breaks = seq(0, 2, by = 0.25),
+                       include.lowest = TRUE)
+  ) %>%
+  group_by(edge_type, distance_bin) %>%
+  summarise(n_edges = n(), mean_weight = mean(weight), .groups = "drop") %>%
+  filter(!is.na(distance_bin)) %>%
+  tidyr::complete(edge_type, distance_bin)  # fills missing combinations with NA
+
+ggplot(assort_by_bin, aes(x = distance_bin, y = mean_weight, fill = edge_type)) +
+  geom_col(position = position_dodge(width = 0.9), alpha = 0.85, na.rm = TRUE) +
+  geom_text(aes(label = n_edges), position = position_dodge(width = 0.9),
+            vjust = -0.5, size = 2.8, colour = "grey40", na.rm = TRUE) +
+  scale_fill_manual(values = c("Within-party" = "#1D9E75", "Cross-party" = "#EF9F27")) +
+  labs(
+    title   = "Mean edge weight by ideological distance and edge type",
+    x       = "Ideological distance",
+    y       = "Mean transmission probability",
+    fill    = NULL,
+    caption = "Numbers above bars show edge count per bin"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x     = element_text(angle = 45, hjust = 1),
+    legend.position = "bottom"
+  )
+```
+
+```{r}
+el %>%
+  filter(!is.na(from_party), !is.na(to_party), !is.na(ideo_distance)) %>%
+  mutate(edge_type    = ifelse(from_party == to_party, "Within-party", "Cross-party"),
+         distance_bin = cut(ideo_distance, breaks = seq(0, 2, by = 0.25),
+                            include.lowest = TRUE)) %>%
+  filter(edge_type == "Cross-party", distance_bin == "[0,0.25]") %>%
+  left_join(tibble(from = V(g)$name, from_name = V(g)$full_name), by = "from") %>%
+  left_join(tibble(to   = V(g)$name, to_name   = V(g)$full_name), by = "to") %>%
+  select(from_party, to_party, from_name, to_name, ideo_distance, weight) %>%
+  arrange(ideo_distance)
+```
+
+```{r fig.width = 10, fig.height = 5}
+assort_by_bin <- el %>%
+  filter(!is.na(from_party), !is.na(to_party), !is.na(ideo_distance),
+         from_party != "Independent", to_party != "Independent") %>%  # exclude here
+  mutate(
+    edge_type    = ifelse(from_party == to_party, "Within-party", "Cross-party"),
+    distance_bin = cut(ideo_distance, breaks = seq(0, 2, by = 0.25),
+                       include.lowest = TRUE)
+  ) %>%
+  group_by(edge_type, distance_bin) %>%
+  summarise(n_edges = n(), mean_weight = mean(weight), .groups = "drop") %>%
+  filter(!is.na(distance_bin)) %>%
+  tidyr::complete(edge_type, distance_bin)
+
+ggplot(assort_by_bin, aes(x = distance_bin, y = mean_weight, fill = edge_type)) +
+  geom_col(position = position_dodge(width = 0.9), alpha = 0.85, na.rm = TRUE) +
+  geom_text(aes(label = n_edges), position = position_dodge(width = 0.9),
+            vjust = -0.5, size = 2.8, colour = "grey40", na.rm = TRUE) +
+  scale_fill_manual(values = c("Within-party" = "#1D9E75", "Cross-party" = "#EF9F27")) +
+  labs(
+    title   = "Mean edge weight by ideological distance and edge type",
+    subtitle = "Democrats and Republicans only",
+    x       = "Ideological distance",
+    y       = "Mean transmission probability",
+    fill    = NULL,
+    caption = "Numbers above bars show edge count per bin"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x      = element_text(angle = 45, hjust = 1),
+    legend.position  = "bottom"
+  )
+
+# higher ideology distances have lower interactions, we could have expected outliers in this spectrum might interact more but we do not observe this
+# ideological homophily is consistent
+# interaction between ideologically closer members of different parties can be quite strong, but it is also strong for bins 0.5-1.25, only dips after that
+```
 
 # Conclusion
 
