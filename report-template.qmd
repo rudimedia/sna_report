@@ -32,7 +32,7 @@ include-in-header:
 
 # Introduction
 
-For our analysis, we are concerning ourselves with the [Twitter Interaction Network for US Congress](https://snap.stanford.edu/data/congress-twitter.html) by the SNAP. It represents Twitter activity among members of the 117th U.S. Congress. The dataset contains 475 congressional Twitter accounts connected by 13,289 directed, weighted edges. An edge represents an observed interaction between two members, including retweets, quote tweets, replies, and mentions. Edge weights capture the relative strength of these interactions and are modeled as a normalized measure of influence between accounts. As the dataset itself does not contain any node properties besides the names and usernames of the members, we are enriching it using data from [voteview](https://voteview.com/congress/senate/117/text) and [github/unitedstates](https://github.com/unitedstates/congress-legislators) which cover chamber and party affiliation, age, as well as ideological position scores.
+For our analysis, we are concerning ourselves with the [Twitter Interaction Network for US Congress](https://snap.stanford.edu/data/congress-twitter.html) by the SNAP. It represents Twitter activity among members of the 117th U.S. Congress. The dataset contains 475 congressional Twitter accounts connected by 13,289 directed, weighted edges. An edge represents an observed interaction between two members, including retweets, quote tweets, replies, and mentions. Edge weights capture the relative strength of these interactions and are modeled as a normalized measure of influence between accounts. As the dataset itself does not contain any node properties besides the names and usernames of the members, we are enriching it using data from [voteview](https://voteview.com/congress/senate/117/text), [github/unitedstates](https://github.com/unitedstates/congress-legislators) which cover chamber and party affiliation, age, as well as ideological position scores, and [uscd data](https://ucsd.libguides.com/congress_twitter) which contains members' Twitter handles and their names.
 
 Our focus of analysis will be to assess homophily within the interaction network, based on different characteristics such as party affiliation, chamber and age. It has been shown quite thoroughly that party homophily exists, but we are most interested in whether tertiary factors such as chamber and age moderate this effect, e.g. do members of the senate exhibit more homophily than those in the house, and, do older members exhibit more or less homophily than their younger colleagues?
 
@@ -44,23 +44,33 @@ Assortativity is the network-level measure that formally captures homophily. @ne
 
 # Data Pre-Processing
 
-```{r, echo=TRUE}
-pacman::p_load("igraph", "dplyr", "purrr", "tibble", "stringr")
+```{r, echo=FALSE}
+pacman::p_load("igraph", "dplyr", "purrr", "tibble", "stringr", "ggraph", "graphlayouts")
 
 #### DATA ####
 
 data <- jsonlite::fromJSON("congress_network/congress_network_data.json", simplifyVector = FALSE)
 voteview <- readr::read_csv("HS117_members.csv", show_col_types=FALSE)
 
-leg <- yaml::read_yaml(
+# read current and historical congress data
+leg_curr <- yaml::read_yaml(
   "https://raw.githubusercontent.com/unitedstates/congress-legislators/main/legislators-current.yaml",
   handlers = list(int = function(x) x)
 )
-
-soc <- yaml::read_yaml(
-  "https://raw.githubusercontent.com/unitedstates/congress-legislators/main/legislators-social-media.yaml",
+leg_hist <- yaml::read_yaml(
+  "https://raw.githubusercontent.com/unitedstates/congress-legislators/main/legislators-historical.yaml",
   handlers = list(int = function(x) x)
 )
+leg <- c(leg_curr, leg_hist)
+
+soc <- readr::read_csv2("HS117_Twitter_Handles.csv", show_col_types = FALSE) %>%
+  select(Name, Twitter) %>%
+  mutate(
+    full_name     = str_replace(Name, "^(.+), (.+)$", "\\2 \\1"),
+    full_name     = str_remove(full_name, "\\s[A-Z]\\.(?=\\s)"), # remove middle name abbr. for join later
+    twitter_clean = str_to_lower(Twitter)
+  ) %>%
+  select(full_name, twitter_clean)
 
 inList <- data[[1]]$inList
 inWeight <- data[[1]]$inWeight
@@ -93,7 +103,7 @@ members <- purrr::map_dfr(leg, function(x) {
       bioguide_id = x$id$bioguide %||% NA_character_,
       first_name  = x$name$first %||% NA_character_,
       last_name   = x$name$last %||% NA_character_,
-      full_name   = paste(x$name$first %||% "", x$name$last %||% ""),
+      full_name   = x$name$official_full %||% NA_character_,
       type        = term$type %||% NA_character_,
       state       = term$state %||% NA_character_,
       district    = as.character(term$district %||% NA_character_),
@@ -102,44 +112,25 @@ members <- purrr::map_dfr(leg, function(x) {
       term_end    = as.Date(term$end)
     )
   })
-})
+}) %>%
+  mutate(full_name = str_remove(full_name, "\\s[A-Z]\\.(?=\\s)")) # remove middle name abbr. for join later
 
-social <- map_dfr(soc, function(x) {
-  tibble(
-    bioguide_id = x$id$bioguide %||% NA_character_,
-    twitter = x$social$twitter %||% NA_character_
-  )
-})
+soc <- soc %>%
+  left_join(
+    members %>% select(bioguide_id, full_name, type, party, state, district) %>% distinct(),
+    by = "full_name"
+  ) %>%
+  distinct(twitter_clean, .keep_all = TRUE)
 
-members <- members %>%
-  left_join(social, by = "bioguide_id")
-
-members_117 <- members %>%
-  filter(term_start < as.Date("2023-01-03"), term_end > as.Date("2021-01-03")) %>%
+soc <- soc %>%
   mutate(
     chamber = case_when(
       type == "sen" ~ "Senate",
       type == "rep" ~ "House",
       TRUE ~ NA_character_
-    ),
-    twitter_clean = str_to_lower(str_remove(twitter, "^@"))
+    )
   )
 
-members_117_one <- members_117 %>%
-  filter(!is.na(twitter_clean), twitter_clean != "") %>%
-  arrange(twitter_clean, term_start) %>%
-  group_by(twitter_clean) %>%
-  summarise(
-    bioguide_id = first(bioguide_id),
-    full_name = first(full_name),
-    chamber = first(chamber),
-    party = first(party),
-    state = first(state),
-    district = first(district),
-    term_start = min(term_start, na.rm = TRUE),
-    term_end = max(term_end, na.rm = TRUE),
-    .groups = "drop"
-  )
 
 graph_vertices <- tibble(
   name = V(g)$name,
@@ -147,7 +138,7 @@ graph_vertices <- tibble(
   twitter_clean = str_to_lower(str_remove(V(g)$username, "^@")))
 
 vertex_metadata <- graph_vertices %>%
-  left_join(members_117_one, by = "twitter_clean")
+  left_join(soc, by = "twitter_clean")
 
 V(g)$full_name <- vertex_metadata$full_name
 V(g)$chamber <- vertex_metadata$chamber
@@ -158,13 +149,26 @@ V(g)$bioguide_id <- vertex_metadata$bioguide_id
 
 # IDEOLOGY
 nodes <- tibble(idx = seq_len(vcount(g)), bioguide_id  = V(g)$bioguide_id) %>%
-  left_join(voteview, by = "bioguide_id")
+  left_join(voteview, by = "bioguide_id", na_matches = "never")
 
 V(g)$icpsr <- nodes$icpsr
 V(g)$nominate_dim1 <- nodes$nominate_dim1
 V(g)$nominate_dim2 <- nodes$nominate_dim2
 V(g)$born <- nodes$born
-V(g)$age24 <- (2024 - nodes$born) 
+V(g)$age24 <- (2024 - nodes$born)  
+```
+
+```{r}
+# investigate NA values
+vdf <- igraph::as_data_frame(g, what = "vertices")
+na_counts <- colSums(is.na(vdf))
+
+data.frame(
+  `NA count` = na_counts,
+  `NA %`     = round(na_counts / nrow(vdf) * 100, 1),
+  check.names = FALSE
+) |>
+  arrange(desc(`NA count`))
 ```
 
 # Exploratory Data Analysis
