@@ -1,10 +1,28 @@
 ---
 title: "Homophily in Congress on Twitter"
-author: "Marcel Julien Kalb, Mike Barth, Sam Känner"
+author:
+  - 'Marcel Julien Kalb\footnotemark[1]\kern0.5em\footnotemark[2]'
+  - 'Mike Barth\footnotemark[1]\kern0.5em\footnotemark[3]'
+  - 'Sam Känner\footnotemark[1]\kern0.5em\footnotemark[4]'
 format:
-  pdf
+  pdf:
+    documentclass: article
 bibliography: bib.bib
+include-in-header:
+  text: |
+    \usepackage{fvextra}
+    \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
 ---
+
+```{=latex}
+\renewcommand{\thefootnote}{\fnsymbol{footnote}}
+\footnotetext[1]{Department of Politics and Public Administration, University of Konstanz.}
+\footnotetext[2]{Email: marcel.julien.kalb@uni-konstanz.de.}
+\footnotetext[3]{Email: mike.barth@uni-konstanz.de.}
+\footnotetext[4]{Email: sam.kaenner@uni-konstanz.de.}
+\renewcommand{\thefootnote}{\arabic{footnote}}
+\setcounter{footnote}{0}
+```
 
 <!-- # Instruction stuff -->
 
@@ -26,7 +44,7 @@ Assortativity is the network-level measure that formally captures homophily. @ne
 
 # Data Pre-Processing
 
-```{r, echo=FALSE}
+```{r, echo=TRUE}
 pacman::p_load("igraph", "dplyr", "purrr", "tibble", "stringr")
 
 #### DATA ####
