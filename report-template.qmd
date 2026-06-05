@@ -548,7 +548,7 @@ Looking at mean edge weights by ideological distance, we high interaction within
 
 # Conclusion
 
-Results consistently confirm strong partisan homophily: members direct approximately 87% of interaction weight toward co-partisans, symmetrically across both parties and chambers. Ideological assortativity on the left-right dimension reinforces this pattern, while the social-racial dimension and age produce much weaker effects. Older Republican members show a modest tendency toward less party-homophilous interaction, though the overall age effect is negligible. Network visualizations confirm partisan clustering, with dense clusters of similar ideology. However, we also find exceptions, such as Pelosi's strong tie to Jim Banks. Such ties likely reflect conflict interaction rather than cross-party collaboration.
+Results consistently confirm strong symmetric partisan homophily, across both parties and chambers. Ideological assortativity on the left-right dimension reinforces this pattern, while the social-racial dimension and age produce much weaker effects. Network visualizations confirm partisan and ideological clustering. Exceptions exist, though these ties likely reflect conflict interaction rather than cross-party collaboration.
 
 Key limitations include 47 unmatched nodes, the limitation to the 117th Congress, and the inability to distinguish collaborative from adversarial interactions in the transmission probability metric. Future research could incorporate interaction type classification to separate confrontational from collaborative ties, integrate committee co-membership data as a structural covariate, or extend the analysis across multiple congresses to assess whether homophily has intensified alongside broader political polarization.
 
