@@ -38,7 +38,7 @@ Assortativity is the network-level measure that formally captures homophily. @ne
 
 # Data Pre-Processing
 
-```{r, echo=FALSE, cache=TRUE}
+```{r, echo=FALSE}
 pacman::p_load("igraph", "dplyr", "purrr", "tibble", "stringr", "ggraph", "graphlayouts")
 
 #### DATA ####
@@ -473,7 +473,7 @@ ggraph(g_party_un, layout = "backbone") +
        subtitle = paste0("Nodes with known party only (n = ", no_of_nodes, ")"))
 ```
 
-Both layouts confirm strong party homophily with few cross-party exceptions. The single independent node (Bernie Sanders) interacts largely with Democrats as expected. Backbone also shows a divide both in the Democratic and Republican party not visible in Stress. The latter divide acts as a bridge between the parties. The inclusion of ideology (dim1) also shows according clustering, with higher values closer together, particularly for the Republicans.
+Both layouts confirm strong party homophily with few cross-party exceptions. The single independent node interacts largely with Democrats as expected. Backbone also shows a divide both in the Democratic and Republican party. The latter divide acts as a bridge between the parties. The inclusion of ideology (dim1) also shows according clustering, with higher values closer together, particularly for the Republicans.
 
 ```{r fig.width = 7, fig.height = 5, warning=FALSE}
 
@@ -523,9 +523,16 @@ ggraph(ego_out, layout = "focus", focus = focal_idx2) +
 We look at the top 10 edges of an example node, Nancy Pelosi, in an ego network. She has the highest out-degree of all nodes. Despite the majority of the nodes following party and ideology homophily, there are major exceptions, particularly with Jim Banks who has an ideological distance of 1.14 to Pelosi. This is likely a result of conflict interaction rather than collaboration. This illustrates that aggregate homophily patterns can coexist with meaningful individual-level violations, particularly among high-visibility leadership figures.
 
 ```{r fig.width = 10, fig.height = 5}
+el <- igraph::as_data_frame(g, what = "edges")
+el$from_party    <- V(g)$party[match(el$from, V(g)$name)]
+el$to_party      <- V(g)$party[match(el$to,   V(g)$name)]
+el$from_dim1     <- V(g)$nominate_dim1[match(el$from, V(g)$name)]
+el$to_dim1       <- V(g)$nominate_dim1[match(el$to,   V(g)$name)]
+el$ideo_distance <- abs(el$from_dim1 - el$to_dim1)
+
 assort_by_bin <- el %>%
   filter(!is.na(from_party), !is.na(to_party), !is.na(ideo_distance),
-         from_party != "Independent", to_party != "Independent") %>%  # exclude here
+         from_party != "Independent", to_party != "Independent") %>%
   mutate(
     edge_type    = ifelse(from_party == to_party, "Within-party", "Cross-party"),
     distance_bin = cut(ideo_distance, breaks = seq(0, 2, by = 0.25),
@@ -535,28 +542,9 @@ assort_by_bin <- el %>%
   summarise(n_edges = n(), mean_weight = mean(weight), .groups = "drop") %>%
   filter(!is.na(distance_bin)) %>%
   tidyr::complete(edge_type, distance_bin)
-
-ggplot(assort_by_bin, aes(x = distance_bin, y = mean_weight, fill = edge_type)) +
-  geom_col(position = position_dodge(width = 0.9), alpha = 0.85, na.rm = TRUE) +
-  geom_text(aes(label = n_edges), position = position_dodge(width = 0.9),
-            vjust = -0.5, size = 2.8, colour = "grey40", na.rm = TRUE) +
-  scale_fill_manual(values = c("Within-party" = "#1D9E75", "Cross-party" = "#EF9F27")) +
-  labs(
-    title   = "Mean edge weight by ideological distance and edge type",
-    subtitle = "Democrats and Republicans only",
-    x       = "Ideological distance",
-    y       = "Mean transmission probability",
-    fill    = NULL,
-    caption = "Numbers above bars show edge count per bin"
-  ) +
-  theme_minimal(base_size = 12) +
-  theme(
-    axis.text.x      = element_text(angle = 45, hjust = 1),
-    legend.position  = "bottom"
-  )
 ```
 
-Looking at mean edge weights by ideological distance, we find the expected pattern of high interaction within parties on low ideological distance. Interestingly, a similarly high interaction persists across parties even as ideological distance increases. Only at the highest distance bin (\[1.25, 1.5\]) does it decrease. On an aggregate level, meaningful interaction across parties exists up to a threshold. Though, again, this is likely more confrontational than collaborative. We might expect interaction due to confrontation to increase again at high ideological differences, but we do not observe this. Transmission probability does not increase at high distances, suggesting that conflict-driven Twitter engagement, while present, does not dominate aggregate interaction patterns.
+Looking at mean edge weights by ideological distance, we high interaction within parties on low ideological distance. Similar high interaction persists across parties even as distance increases. Only at the highest distance bin does it decrease, meaningful interaction across parties exists up to a threshold. We might expect interaction to increase at extreme ideological differences due to conflict, but we do not observe this. It suggests that conflict-driven engagement, while present, does not dominate aggregate interaction patterns.
 
 # Conclusion
 
@@ -564,7 +552,7 @@ Results consistently confirm strong partisan homophily: members direct approxima
 
 Key limitations include 47 unmatched nodes, the limitation to the 117th Congress, and the inability to distinguish collaborative from adversarial interactions in the transmission probability metric. Future research could incorporate interaction type classification to separate confrontational from collaborative ties, integrate committee co-membership data as a structural covariate, or extend the analysis across multiple congresses to assess whether homophily has intensified alongside broader political polarization.
 
-#  References
+# References
 
 ::: {#refs}
 :::
